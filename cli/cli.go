@@ -20,6 +20,8 @@ type CLI struct {
 
 	ExternalConfig ExternalConfig `group:"Options read from gpupconfig"`
 
+	ListDoneName string `long:"gpupdone" env:"GPUPDONE" default:"~/.gpupdone" description:"Path and name to the list of process file"`
+
 	Paths []string
 }
 

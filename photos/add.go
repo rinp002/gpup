@@ -4,12 +4,16 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
 	"sync"
 
 	"github.com/int128/gpup/photos/internal"
 
+	homedir "github.com/mitchellh/go-homedir"
 	photoslibrary "google.golang.org/api/photoslibrary/v1"
 )
+
+const filedone string = "~/.gpupdone"
 
 var uploadConcurrency = 4
 var batchCreateSize = 50
@@ -93,12 +97,36 @@ func (p *Photos) add(ctx context.Context, uploadItems []UploadItem, req photosli
 			}
 		}()
 	}
+
+	// Philippe Rinfret
+	// write to file if upload ok.
+	fdone, err := homedir.Expand(filedone)
+	if err != nil {
+		log.Fatalf("Could not expand %s: %s", filedone, err)
+	}
+	f, err := os.OpenFile(fdone, os.O_APPEND|os.O_RDWR|os.O_CREATE, 0600)
+	if err != nil {
+		log.Fatalf("Could not open %s: %s", filedone, err)
+	}
+	defer f.Close()
+
 	for _, bt := range batchCreateTasks {
 		bt.wg.Wait()
 		req.NewMediaItems = bt.toNewMediaItems()
 		if len(req.NewMediaItems) > 0 {
 			log.Printf("Adding %d item(s)", len(req.NewMediaItems))
 			bt.res, bt.err = p.service.BatchCreate(ctx, &req)
+		}
+		m := bt.toNewMediaItemResultMap()
+		for _, ut := range bt.uploadTasks {
+			if mr, ok := m[ut.token]; ok {
+				if mr.Status.Code != 0 {
+					log.Printf("Intra batch status: %s (code=%d) \n", mr.Status.Message, mr.Status.Code)
+				} else {
+					f.WriteString(ut.item.String() + "\n")
+					log.Println("Intra batch status: OK", ut.item.String())
+				}
+			}
 		}
 	}
 

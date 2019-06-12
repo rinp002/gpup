@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"log"
@@ -10,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/int128/gpup/photos"
+	homedir "github.com/mitchellh/go-homedir"
 )
 
 func (c *CLI) upload(ctx context.Context) error {
@@ -61,6 +63,8 @@ func (c *CLI) upload(ctx context.Context) error {
 func (c *CLI) findUploadItems() ([]photos.UploadItem, error) {
 	client := c.newHTTPClient()
 	uploadItems := make([]photos.UploadItem, 0)
+
+	m := c.loadMapFileDone()
 	for _, arg := range c.Paths {
 		switch {
 		case strings.HasPrefix(arg, "http://") || strings.HasPrefix(arg, "https://"):
@@ -86,7 +90,12 @@ func (c *CLI) findUploadItems() ([]photos.UploadItem, error) {
 				case err != nil:
 					return err
 				case info.Mode().IsRegular():
-					uploadItems = append(uploadItems, photos.FileUploadItem(name))
+					if _, ok := m[name]; ok {
+						log.Println("Fichier déjà sync ", name)
+					} else {
+						log.Println("Fichier ajouté ", name)
+						uploadItems = append(uploadItems, photos.FileUploadItem(name))
+					}
 					return nil
 				default:
 					return nil
@@ -97,4 +106,34 @@ func (c *CLI) findUploadItems() ([]photos.UploadItem, error) {
 		}
 	}
 	return uploadItems, nil
+}
+
+func (c *CLI) loadMapFileDone() map[string]int64 {
+
+	var m map[string]int64
+	m = make(map[string]int64)
+
+	fdone, err := homedir.Expand(c.ListDoneName)
+	if err != nil {
+		log.Fatalf("Could not expand %s: %s", c.ListDoneName, err)
+	}
+
+	file, err := os.Open(fdone)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer file.Close()
+
+	var i int64
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		m[scanner.Text()] = i
+		i++
+	}
+
+	if err := scanner.Err(); err != nil {
+		log.Fatal(err)
+	}
+
+	return m
 }
