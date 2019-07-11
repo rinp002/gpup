@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/int128/gpup/photos/internal"
 
@@ -16,7 +17,7 @@ import (
 const filedone string = "~/.gpupdone"
 
 var uploadConcurrency = 4
-var batchCreateSize = 50
+var batchCreateSize = 8
 
 // AddToLibrary adds the items to the library.
 // This method tries uploading all items and ignores any error.
@@ -73,6 +74,16 @@ type AddResult struct {
 	Error     error
 }
 
+func checkHourForInternet() {
+	fmt.Println("check hours for internet...")
+	if time.Now().Hour() >= 2 && time.Now().Hour() < 14 {
+	} else {
+		log.Println("not in the good timezone...sleep for", 600*time.Second)
+		time.Sleep(600 * time.Second)
+		checkHourForInternet()
+	}
+}
+
 func (p *Photos) add(ctx context.Context, uploadItems []UploadItem, req photoslibrary.BatchCreateMediaItemsRequest) []*AddResult {
 	uploadQueue := make(chan *uploadTask, len(uploadItems))
 	var batchCreateTasks []*batchCreateTask
@@ -92,7 +103,9 @@ func (p *Photos) add(ctx context.Context, uploadItems []UploadItem, req photosli
 	for i := 0; i < uploadConcurrency; i++ {
 		go func() {
 			for ut := range uploadQueue {
+				checkHourForInternet()
 				ut.token, ut.err = p.service.Upload(ctx, ut.item)
+				fmt.Println("step 1: thread Upload done for ", ut.item.String())
 				ut.wg.Done()
 			}
 		}()

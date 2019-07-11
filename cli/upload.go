@@ -90,11 +90,15 @@ func (c *CLI) findUploadItems() ([]photos.UploadItem, error) {
 				case err != nil:
 					return err
 				case info.Mode().IsRegular():
-					if _, ok := m[name]; ok {
-						log.Println("Fichier déjà sync ", name)
+					if filepath.Ext(name) == ".MOV" || filepath.Ext(name) == ".tif" || filepath.Ext(name) == ".AAE" || filepath.Ext(name) == ".mpg" || filepath.Ext(name) == ".mp4" {
+						// rien
 					} else {
-						log.Println("Fichier ajouté ", name)
-						uploadItems = append(uploadItems, photos.FileUploadItem(name))
+						if _, ok := m[name]; ok {
+							log.Println("Fichier déjà sync ", name)
+						} else {
+							log.Println("Fichier ajouté ", name)
+							uploadItems = append(uploadItems, photos.FileUploadItem(name))
+						}
 					}
 					return nil
 				default:
